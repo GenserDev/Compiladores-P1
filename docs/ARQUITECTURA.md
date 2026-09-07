@@ -82,11 +82,11 @@ entorno donde la funcion fue definida y no a donde se llama, los closures funcio
 cuando un identificador se resuelve en un entorno mas externo que la funcion actual se anota en la lista
 `capturadas` del simbolo de esa funcion.
 
-Los offsets se asignan de forma incremental dentro de cada entorno segun el tamano del tipo, `integer` 4
+Los offsets se asignan de forma incremental dentro de cada entorno segun el tamaño del tipo, `integer` 4
 bytes, `boolean` 1, y 8 para `float`, `string`, arreglos, objetos y funciones. Esos numeros no se usan
 todavia, existen para la fase de generacion de codigo intermedio.
 
-## Decisiones de diseno
+## Decisiones de diseño
 
 **Los errores no detienen la compilacion.** El tipo `ERROR` se propaga silenciosamente, asi que un solo
 error no produce diez mensajes derivados. Esto vuelve util la lista de errores del IDE.

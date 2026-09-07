@@ -39,7 +39,7 @@ python3 Driver.py program/ejemplo.cps --tabla
 python3 ide/app.py
 ```
 
-El IDE abre con `program/ejemplo.cps` cargado. El boton Compilar llena las tres pestanas de abajo, la
+El IDE abre con `program/ejemplo.cps` cargado. El boton Compilar llena las tres pestañas de abajo, la
 lista de errores, la tabla de simbolos y el arbol sintactico. Al hacer clic en un error el editor salta a
 esa linea.
 
@@ -81,16 +81,6 @@ src/arbol.py               arbol sintactico en texto y en DOT
 src/compilador.py          fachada que junta parser y analizador
 ide/app.py                 IDE
 tests/casos/               casos de prueba en Compiscript
-docs/ARQUITECTURA.md       diseno de la implementacion
+docs/ARQUITECTURA.md       diseño de la implementacion
 docs/REGLAS.md             catalogo de reglas y codigos de error
 ```
-
-## Notas
-
-El parser generado esta versionado en `program/generated`, asi que no hace falta tener Java para correr el
-compilador. Java solo se necesita si se modifica la gramatica.
-
-La gramatica tiene un solo cambio respecto a la del curso, se agrego el tipo `float` y su literal, porque
-el enunciado los pide en las reglas de operaciones aritmeticas y la gramatica original no los incluye.
-
-El IDE usa Tkinter, que viene con Python. En Linux puede hacer falta instalar `python3-tk`.
