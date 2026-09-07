@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+*.dot
+.pytest_cache/
+program/generated/*.interp
+program/generated/*.tokens
