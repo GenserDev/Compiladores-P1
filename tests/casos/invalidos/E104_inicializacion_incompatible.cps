@@ -1,0 +1,1 @@
+let a: integer = "hola";
