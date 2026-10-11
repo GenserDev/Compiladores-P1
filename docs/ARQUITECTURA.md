@@ -98,3 +98,33 @@ que si cualquiera de los dos operandos es `string` el resultado es `string`.
 
 **El parser generado esta versionado.** `program/generated` esta en el repositorio para que el proyecto
 corra sin tener Java instalado. Para regenerarlo despues de tocar la gramatica esta `generar_parser.sh`.
+
+# Fase 2: generacion de codigo intermedio
+
+```
+src/compilador.py -> src/analizador.py   (anota el arbol: ctx.tipo, ctx.simbolo)
+                  -> src/generador.py    (visitor que produce el TAC)
+                         -> src/tac.py           (Instruccion, FuncionTAC, ProgramaTAC)
+                         -> src/temporales.py    (PoolTemporales)
+                         -> src/simbolos.py      (RegistroActivacion, disposicion de objetos)
+                  -> src/interprete_tac.py (ejecuta el TAC, usado en pruebas y en el IDE)
+```
+
+**Arbol anotado.** El analizador semantico guarda en cada nodo lo que ya calculo: `ctx.tipo` en cada
+expresion, `ctx.simbolo` en declaraciones e identificadores, `ctx.entorno` y `ctx.parametros_simbolos` en
+funciones, `ctx.info` en clases y `tipo_previo` y `miembro` en cada sufijo de acceso. El generador lee esas
+anotaciones y no vuelve a resolver nombres ni a inferir tipos. Esta fue la unica modificacion al analizador, y
+no cambia ninguna regla ni codigo de error.
+
+**Generador.** `GeneradorTAC` es un visitor aparte. Cada metodo de expresion devuelve el operando donde quedo
+el valor. Las condiciones se traducen con `saltar_si_falso` y `saltar_si_verdadero`, que producen saltos en
+lugar de valores booleanos. Mantiene un `ContextoFuncion` por cada funcion en curso (pool de temporales,
+registro de activacion, pila de bucles, cantidad de `try` abiertos).
+
+**Tabla de simbolos.** Se agregaron `almacenamiento`, `direccion`, `nombre_tac`, `etiqueta`, `nivel_funcion` y
+`registro` a `Simbolo`, la disposicion de objetos (`offset_campo`, `tamano_objeto`, `tabla_virtual`) a
+`InfoClase`, y la clase `RegistroActivacion`. El `offset` que calculaba la fase 1 por entorno se reemplaza
+por el desplazamiento real dentro del registro de activacion.
+
+El detalle del lenguaje intermedio, los esquemas de traduccion y los supuestos estan en
+`docs/LENGUAJE_INTERMEDIO.md`.

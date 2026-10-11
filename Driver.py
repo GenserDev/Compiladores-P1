@@ -5,13 +5,18 @@ from src.compilador import compilar_archivo
 
 def main(argv):
     if len(argv) < 2:
-        print("uso: python3 Driver.py <archivo.cps> [--arbol] [--tabla] [--dot salida.dot]")
+        print("uso: python3 Driver.py <archivo.cps> [--arbol] [--tabla] [--tac] [--lineas] [--registros] [--dot salida.dot]")
         return 1
     resultado = compilar_archivo(argv[1])
     if "--arbol" in argv:
         print(resultado.arbol_texto())
     if "--tabla" in argv and resultado.tabla is not None:
         print(resultado.tabla)
+    if "--tac" in argv and resultado.tac is not None:
+        print(resultado.tac.texto(con_lineas="--lineas" in argv))
+    if "--registros" in argv and resultado.tabla is not None and resultado.tac is not None:
+        print(resultado.tabla.registros_texto())
+        print(resultado.tabla.clases_texto())
     if "--dot" in argv:
         destino = argv[argv.index("--dot") + 1]
         with open(destino, "w") as archivo:

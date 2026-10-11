@@ -14,6 +14,7 @@ from CompiscriptParser import CompiscriptParser
 
 import arbol as vista_arbol
 from analizador import AnalizadorSemantico
+from generador import generar_tac
 from errores import ColectorErrores
 
 
@@ -27,11 +28,12 @@ class RecolectorSintactico(ErrorListener):
 
 
 class Resultado:
-    def __init__(self, errores, tabla, arbol, parser):
+    def __init__(self, errores, tabla, arbol, parser, tac=None):
         self.errores = errores
         self.tabla = tabla
         self.arbol = arbol
         self.parser = parser
+        self.tac = tac
 
     def exitoso(self):
         return not self.errores.hay_errores()
@@ -43,7 +45,7 @@ class Resultado:
         return vista_arbol.dot(self.arbol, self.parser)
 
 
-def compilar(fuente):
+def compilar(fuente, generar=True):
     colector = ColectorErrores()
     lexer = CompiscriptLexer(InputStream(fuente))
     lexer.removeErrorListeners()
@@ -57,9 +59,12 @@ def compilar(fuente):
     analizador = AnalizadorSemantico()
     analizador.errores = colector
     analizador.analizar(arbol)
-    return Resultado(colector, analizador.tabla, arbol, parser)
+    tac = None
+    if generar and not colector.hay_errores():
+        tac = generar_tac(arbol, analizador.tabla)
+    return Resultado(colector, analizador.tabla, arbol, parser, tac)
 
 
-def compilar_archivo(ruta):
+def compilar_archivo(ruta, generar=True):
     with open(ruta, "r") as archivo:
-        return compilar(archivo.read())
+        return compilar(archivo.read(), generar)

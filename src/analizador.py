@@ -2,7 +2,7 @@ from antlr4 import TerminalNode
 from CompiscriptParser import CompiscriptParser
 from CompiscriptVisitor import CompiscriptVisitor
 
-from tipos import (TipoArreglo, TipoFuncion, TipoClase, PRIMITIVOS, ENTERO, FLOTANTE,
+from tipos import (Tipo, TipoArreglo, TipoFuncion, TipoClase, PRIMITIVOS, ENTERO, FLOTANTE,
                    CADENA, BOOLEANO, NULO, VACIO, ERROR, es_error, es_numerico, compatible,
                    unificar, comparables)
 from simbolos import Simbolo, InfoClase, TablaSimbolos
@@ -28,6 +28,15 @@ class AnalizadorSemantico(CompiscriptVisitor):
     def analizar(self, arbol):
         self.visit(arbol)
         return self.errores
+
+    # Fase 2: el arbol queda anotado. Cada expresion visitada guarda su tipo en `ctx.tipo`
+    # y cada declaracion o uso de identificador guarda su simbolo en `ctx.simbolo`.
+    # El generador de codigo intermedio lee estas anotaciones y no repite el analisis.
+    def visit(self, tree):
+        resultado = tree.accept(self)
+        if isinstance(resultado, Tipo):
+            tree.tipo = resultado
+        return resultado
 
     def resolver_tipo(self, ctx):
         if ctx is None:
@@ -113,6 +122,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
             if miembro.functionDeclaration() is not None:
                 metodo = self.firma_funcion(miembro.functionDeclaration())
                 metodo.categoria = "metodo"
+                metodo.dueno = info
                 if metodo.nombre in info.metodos:
                     self.error("E303", "el metodo '{}' ya fue declarado".format(metodo.nombre), miembro)
                 info.metodos[metodo.nombre] = metodo
@@ -172,6 +182,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
         tipo = declarado if declarado is not None else (valor if valor is not None else ERROR)
         simbolo = Simbolo(nombre, "variable", tipo, ctx.start.line, ctx.start.column)
         simbolo.inicializado = valor is not None
+        ctx.simbolo = simbolo
         self.declarar(simbolo, ctx)
         return None
 
@@ -186,6 +197,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
                           ctx.start.line, ctx.start.column)
         simbolo.es_const = True
         simbolo.inicializado = True
+        ctx.simbolo = simbolo
         self.declarar(simbolo, ctx)
         return None
 
@@ -194,6 +206,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
         if len(expresiones) == 1:
             nombre = ctx.Identifier().getText()
             valor = self.visit(expresiones[0])
+            ctx.simbolo = self.tabla.buscar(nombre)
             self.asignar_identificador(nombre, valor, ctx)
         else:
             objeto = self.visit(expresiones[0])
@@ -298,6 +311,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
         self.tabla.abrir_ambito("foreach{}".format(self.contador_bloques), "bucle")
         simbolo = Simbolo(ctx.Identifier().getText(), "variable", elemento, ctx.start.line, ctx.start.column)
         simbolo.inicializado = True
+        ctx.simbolo = simbolo
         self.declarar(simbolo, ctx)
         self.entrar_bucle(ctx.block())
         self.tabla.cerrar_ambito()
@@ -334,6 +348,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
         self.tabla.abrir_ambito("catch{}".format(self.contador_bloques), "bloque")
         simbolo = Simbolo(ctx.Identifier().getText(), "variable", CADENA, ctx.start.line, ctx.start.column)
         simbolo.inicializado = True
+        ctx.simbolo = simbolo
         self.declarar(simbolo, ctx)
         self.visit(ctx.block(1))
         self.tabla.cerrar_ambito()
@@ -365,6 +380,11 @@ class AnalizadorSemantico(CompiscriptVisitor):
         if simbolo is None or simbolo.categoria not in ("funcion", "metodo"):
             simbolo = self.firma_funcion(ctx)
         entorno = self.tabla.abrir_ambito(nombre, "funcion")
+        simbolo.etiqueta = entorno.ruta()[len("global."):]
+        simbolo.nivel_funcion = len(self.funciones) + 1
+        ctx.simbolo = simbolo
+        ctx.entorno = entorno
+        ctx.parametros_simbolos = []
         vistos = set()
         for nombre_param, tipo_param in simbolo.parametros:
             if nombre_param in vistos:
@@ -374,6 +394,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
             parametro = Simbolo(nombre_param, "parametro", tipo_param, ctx.start.line, ctx.start.column)
             parametro.inicializado = True
             self.tabla.declarar(parametro)
+            ctx.parametros_simbolos.append(parametro)
         self.funciones.append({"nombre": nombre, "retorno": simbolo.retorno,
                                "tiene_return": False, "entorno": entorno, "simbolo": simbolo})
         self.cuerpo(ctx.block().statement())
@@ -390,6 +411,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
             return None
         entorno = self.tabla.abrir_ambito(nombre, "clase")
         info.entorno = entorno
+        ctx.info = info
         for atributo in info.atributos.values():
             self.tabla.declarar(atributo)
         for metodo in info.metodos.values():
@@ -600,7 +622,9 @@ class AnalizadorSemantico(CompiscriptVisitor):
             return tipo
         self.simbolo_lhs = None
         for sufijo in sufijos:
+            sufijo.tipo_previo = tipo
             tipo = self.aplicar_sufijo(tipo, sufijo)
+            sufijo.tipo = tipo
         return tipo
 
     def aplicar_sufijo(self, tipo, sufijo):
@@ -629,6 +653,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
         miembro = tipo.info.buscar_miembro(nombre)
         if miembro is None:
             return self.error("E501", "la clase '{}' no tiene el miembro '{}'".format(tipo.nombre, nombre), sufijo)
+        sufijo.miembro = miembro
         return miembro.tipo
 
     def revisar_argumentos(self, esperados, recibidos, retorno, descripcion, ctx):
@@ -647,6 +672,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
         nombre = ctx.Identifier().getText()
         simbolo = self.tabla.buscar(nombre)
         self.simbolo_atomo = simbolo
+        ctx.simbolo = simbolo
         if simbolo is None:
             return self.error("E200", "'{}' no esta declarado".format(nombre), ctx)
         self.registrar_captura(nombre, simbolo)
@@ -668,6 +694,7 @@ class AnalizadorSemantico(CompiscriptVisitor):
         argumentos = ctx.arguments().expression() if ctx.arguments() is not None else []
         tipos = [self.visit(a) for a in argumentos]
         info = self.tabla.clases.get(nombre)
+        ctx.info = info
         if info is None:
             return self.error("E500", "la clase '{}' no esta declarada".format(nombre), ctx)
         constructor = info.constructor()

@@ -7,6 +7,8 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
 
 from src.compilador import compilar
+from src.interprete_tac import ejecutar, ErrorEjecucion, ExcepcionCompiscript
+from src.simbolos import COLUMNAS
 
 EJEMPLO = os.path.join(RAIZ, "program", "ejemplo.cps")
 
@@ -28,6 +30,7 @@ class IDE(tk.Tk):
         ttk.Button(barra, text="Abrir", command=self.abrir).pack(side="left", padx=2)
         ttk.Button(barra, text="Guardar", command=self.guardar).pack(side="left", padx=2)
         ttk.Button(barra, text="Compilar", command=self.compilar).pack(side="left", padx=2)
+        ttk.Button(barra, text="Ejecutar", command=self.ejecutar).pack(side="left", padx=2)
         ttk.Button(barra, text="Exportar arbol", command=self.exportar_dot).pack(side="left", padx=2)
         self.estado = ttk.Label(barra, text="listo")
         self.estado.pack(side="right")
@@ -65,6 +68,7 @@ class IDE(tk.Tk):
     def construir_paneles(self):
         panel = ttk.Notebook(self)
         panel.pack(fill="both", expand=True, padx=6, pady=6)
+        self.panel = panel
 
         marco_errores = ttk.Frame(panel)
         self.lista_errores = ttk.Treeview(marco_errores, columns=("codigo", "linea", "mensaje"),
@@ -77,7 +81,7 @@ class IDE(tk.Tk):
         panel.add(marco_errores, text="Errores")
 
         marco_tabla = ttk.Frame(panel)
-        columnas = ("nombre", "categoria", "tipo", "ambito", "nivel", "const", "init", "offset", "tamano", "linea")
+        columnas = tuple(COLUMNAS)
         self.tabla_simbolos = ttk.Treeview(marco_tabla, columns=columnas, show="headings", height=8)
         for columna in columnas:
             self.tabla_simbolos.heading(columna, text=columna)
@@ -89,6 +93,21 @@ class IDE(tk.Tk):
         self.vista_arbol = tk.Text(marco_arbol, wrap="none", font=("Menlo", 11))
         self.vista_arbol.pack(fill="both", expand=True)
         panel.add(marco_arbol, text="Arbol sintactico")
+
+        self.vista_tac = self.texto_en_pestana(panel, "Codigo intermedio")
+        self.vista_registros = self.texto_en_pestana(panel, "Registros de activacion")
+        self.vista_salida = self.texto_en_pestana(panel, "Salida")
+
+    def texto_en_pestana(self, panel, titulo):
+        marco = ttk.Frame(panel)
+        vista = tk.Text(marco, wrap="none", font=("Menlo", 11))
+        vista.pack(fill="both", expand=True)
+        panel.add(marco, text=titulo)
+        return vista
+
+    def mostrar(self, vista, contenido):
+        vista.delete("1.0", "end")
+        vista.insert("1.0", contenido)
 
     def cargar_inicial(self):
         if os.path.exists(EJEMPLO):
@@ -128,11 +147,34 @@ class IDE(tk.Tk):
                 self.tabla_simbolos.insert("", "end", values=tuple(fila.values()))
         self.vista_arbol.delete("1.0", "end")
         self.vista_arbol.insert("1.0", resultado.arbol_texto())
+        if resultado.tac is not None:
+            self.mostrar(self.vista_tac, resultado.tac.texto(con_lineas=True))
+            self.mostrar(self.vista_registros,
+                         resultado.tabla.registros_texto() + "\n\n" + resultado.tabla.clases_texto())
+        else:
+            self.mostrar(self.vista_tac, "")
+            self.mostrar(self.vista_registros, "")
         self.resultado = resultado
         if resultado.exitoso():
             self.estado.configure(text="compilacion exitosa")
         else:
             self.estado.configure(text="{} error(es)".format(len(resultado.errores)))
+
+    def ejecutar(self):
+        self.compilar()
+        if not self.resultado.exitoso():
+            self.mostrar(self.vista_salida, "no se ejecuta: hay errores de compilacion")
+            self.panel.select(self.vista_salida.master)
+            return
+        try:
+            salida = "\n".join(ejecutar(self.resultado.tac))
+        except ExcepcionCompiscript as e:
+            salida = "excepcion no atrapada: {}".format(e.mensaje)
+        except ErrorEjecucion as e:
+            salida = "error de ejecucion: {}".format(e)
+        self.mostrar(self.vista_salida, salida)
+        self.panel.select(self.vista_salida.master)
+        self.estado.configure(text="ejecucion terminada")
 
     def ir_al_error(self, evento):
         seleccion = self.lista_errores.selection()
