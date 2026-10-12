@@ -1,5 +1,9 @@
 # Compiscript
 
+## Video explicativo Fase codigo intermedio
+
+https://youtu.be/PJw6_74s93M
+
 Proyecto 1 del curso de Construccion de Compiladores, Universidad del Valle de Guatemala, 2026.
 
 Analizador sintactico y semantico para Compiscript, un subset de TypeScript. El proyecto genera el parser
