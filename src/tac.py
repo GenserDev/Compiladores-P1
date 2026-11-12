@@ -94,6 +94,7 @@ class FuncionTAC:
         self.parametros = parametros
         self.es_main = es_main
         self.instrucciones = []
+        self.tipos_vars = {}       # nombre TAC de variable/parametro -> tipo (texto), para el backend
 
     def encabezado(self):
         return "FUNC {}({})  (frame={})".format(
@@ -117,6 +118,7 @@ class ProgramaTAC:
         self.funciones = funciones
         self.area_global = area_global
         self.vtables = vtables or {}     # clase -> {metodo: etiqueta}
+        self.tipos_globales = {}         # "$x" -> tipo (texto)
 
     def usa_despacho_dinamico(self):
         return any(i.op == "callv" for i in self.instrucciones())

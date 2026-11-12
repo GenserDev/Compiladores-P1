@@ -87,6 +87,7 @@ class GeneradorTAC(CompiscriptVisitor):
         self.cx = None
         self.etiquetas = 0
         self.linea = 0
+        self.tipos_globales = {}    # "$x" -> tipo (lo usa el backend MIPS)
 
     # ------------------------------------------------------------------ utilidades
     def visitChildren(self, ctx):
@@ -130,6 +131,7 @@ class GeneradorTAC(CompiscriptVisitor):
 
     def declarar_almacenamiento(self, simbolo, es_global):
         if es_global:
+            self.tipos_globales["$" + simbolo.nombre] = str(simbolo.tipo)
             simbolo.almacenamiento = "global"
             simbolo.nombre_tac = "$" + simbolo.nombre
             simbolo.nivel_funcion = 0
@@ -137,6 +139,7 @@ class GeneradorTAC(CompiscriptVisitor):
             simbolo.direccion = "gp+{}".format(simbolo.offset)
             return
         self.asignar_nombre(simbolo)
+        self.cx.funcion.tipos_vars[simbolo.nombre_tac] = str(simbolo.tipo)
         simbolo.nivel_funcion = self.cx.nivel
         if simbolo.categoria == "parametro":
             simbolo.almacenamiento = "parametro"
@@ -227,7 +230,9 @@ class GeneradorTAC(CompiscriptVisitor):
         self.cerrar_contexto()
         self.salida.insert(0, funcion)
         vtables = {nombre: info.tabla_virtual() for nombre, info in self.tabla.clases.items()}
-        return ProgramaTAC(self.salida, self.tabla.area_global, vtables)
+        programa = ProgramaTAC(self.salida, self.tabla.area_global, vtables)
+        programa.tipos_globales = self.tipos_globales
+        return programa
 
     def cerrar_contexto(self):
         registro = self.cx.registro
