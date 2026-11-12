@@ -128,3 +128,28 @@ por el desplazamiento real dentro del registro de activacion.
 
 El detalle del lenguaje intermedio, los esquemas de traduccion y los supuestos estan en
 `docs/LENGUAJE_INTERMEDIO.md`.
+
+## Fase 3: generacion de codigo MIPS
+
+Despues del TAC hay una cuarta capa, `src/mips/`, que no modifica nada de las anteriores salvo que el
+generador anota en cada `FuncionTAC` los tipos de sus variables (`tipos_vars`) y en el `ProgramaTAC` los de
+las globales (`tipos_globales`).
+
+```
+ProgramaTAC + TablaSimbolos
+        |
+        v  operandos.py   tipo de cada operando
+        v  bloques.py     bloques basicos, vida de los nombres, variables capturadas, eleccion de $s
+        v  marco.py       casilla de cada nombre en el marco de pila
+        v  emisor.py  <-- registros.py (getReg: pila o descriptores)   runtime.py (rutinas en asm)
+archivo .asm  --simulador.py-->  MARS (tools/Mars4_5.jar)
+```
+
+La convencion de llamada, el algoritmo de asignacion de registros, la representacion de datos y las
+limitaciones estan en `docs/GENERACION_MIPS.md`. Dos decisiones de diseño que conviene tener presentes:
+
+* El backend **no reutiliza los desplazamientos de la fase 2** (palabras de 8 bytes con encabezado de 24).
+  Crea su propio marco de palabras de 4 bytes a partir de los nombres que aparecen en cada funcion; asi la fase 2
+  quedo intacta y la fase 3 puede cambiar su convencion sin tocarla.
+* La validacion es **diferencial**: el interprete del TAC (fase 2) actua como oraculo y los programas
+  compilados a MIPS deben imprimir lo mismo en MARS, en los dos modos de asignacion de registros.
