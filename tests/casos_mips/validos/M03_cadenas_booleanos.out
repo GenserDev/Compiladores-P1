@@ -1,0 +1,18 @@
+true
+false
+false
+n=42 f=2.5 t=true false
+false
+true
+true
+iguales
+[1, 2, 3]
+[x, y]
+[1.5, 0.25]
+-2
+-3
+-3
+-5
+-2147483648
+2147483647
+0,1,2,3,4,
