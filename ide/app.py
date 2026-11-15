@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -9,6 +10,7 @@ sys.path.insert(0, RAIZ)
 from src.compilador import compilar
 from src.interprete_tac import ejecutar, ErrorEjecucion, ExcepcionCompiscript
 from src.simbolos import COLUMNAS
+from src.mips.simulador import ejecutar_asm, mars_disponible, ErrorSimulador
 
 EJEMPLO = os.path.join(RAIZ, "program", "ejemplo.cps")
 
@@ -19,6 +21,7 @@ class IDE(tk.Tk):
         self.title("Compiscript IDE")
         self.geometry("1100x720")
         self.ruta = None
+        self.asm = None
         self.construir_barra()
         self.construir_editor()
         self.construir_paneles()
@@ -30,7 +33,14 @@ class IDE(tk.Tk):
         ttk.Button(barra, text="Abrir", command=self.abrir).pack(side="left", padx=2)
         ttk.Button(barra, text="Guardar", command=self.guardar).pack(side="left", padx=2)
         ttk.Button(barra, text="Compilar", command=self.compilar).pack(side="left", padx=2)
-        ttk.Button(barra, text="Ejecutar", command=self.ejecutar).pack(side="left", padx=2)
+        ttk.Button(barra, text="Ejecutar (TAC)", command=self.ejecutar).pack(side="left", padx=2)
+        ttk.Button(barra, text="Ejecutar en MARS", command=self.ejecutar_mips).pack(side="left", padx=2)
+        ttk.Button(barra, text="Guardar .asm", command=self.guardar_asm).pack(side="left", padx=2)
+        ttk.Label(barra, text="  registros:").pack(side="left")
+        self.modo = tk.StringVar(value="registros")
+        ttk.Combobox(barra, textvariable=self.modo, values=("registros", "pila"), width=10,
+                     state="readonly").pack(side="left", padx=2)
+        self.modo.trace_add("write", lambda *a: self.regenerar_mips())
         ttk.Button(barra, text="Exportar arbol", command=self.exportar_dot).pack(side="left", padx=2)
         self.estado = ttk.Label(barra, text="listo")
         self.estado.pack(side="right")
@@ -96,6 +106,7 @@ class IDE(tk.Tk):
 
         self.vista_tac = self.texto_en_pestana(panel, "Codigo intermedio")
         self.vista_registros = self.texto_en_pestana(panel, "Registros de activacion")
+        self.vista_mips = self.texto_en_pestana(panel, "Codigo MIPS")
         self.vista_salida = self.texto_en_pestana(panel, "Salida")
 
     def texto_en_pestana(self, panel, titulo):
@@ -155,6 +166,7 @@ class IDE(tk.Tk):
             self.mostrar(self.vista_tac, "")
             self.mostrar(self.vista_registros, "")
         self.resultado = resultado
+        self.regenerar_mips()
         if resultado.exitoso():
             self.estado.configure(text="compilacion exitosa")
         else:
@@ -175,6 +187,58 @@ class IDE(tk.Tk):
         self.mostrar(self.vista_salida, salida)
         self.panel.select(self.vista_salida.master)
         self.estado.configure(text="ejecucion terminada")
+
+    def regenerar_mips(self):
+        resultado = getattr(self, "resultado", None)
+        if resultado is None or resultado.tac is None:
+            self.mostrar(self.vista_mips, "")
+            self.asm = None
+            return
+        self.asm = resultado.mips(self.modo.get())
+        self.mostrar(self.vista_mips, self.asm)
+
+    def guardar_asm(self):
+        self.compilar()
+        if self.asm is None:
+            messagebox.showinfo("Compiscript", "No hay codigo MIPS: corrige los errores de compilacion")
+            return
+        ruta = filedialog.asksaveasfilename(defaultextension=".asm", filetypes=[("MIPS", "*.asm")])
+        if ruta:
+            open(ruta, "w").write(self.asm)
+            self.estado.configure(text="guardado en {}".format(os.path.basename(ruta)))
+
+    def ejecutar_mips(self):
+        """Compila, genera MIPS y lo simula en MARS (en un hilo para no congelar la ventana)."""
+        self.compilar()
+        if self.asm is None:
+            self.mostrar(self.vista_salida, "no se ejecuta: hay errores de compilacion")
+            self.panel.select(self.vista_salida.master)
+            return
+        if not mars_disponible():
+            self.mostrar(self.vista_salida, "MARS no esta disponible: se necesita Java y tools/Mars4_5.jar")
+            self.panel.select(self.vista_salida.master)
+            return
+        self.estado.configure(text="simulando en MARS...")
+        asm = self.asm
+
+        def trabajo():
+            try:
+                salida, codigo, errores = ejecutar_asm(asm)
+                texto = "\n".join(salida)
+                if errores:
+                    texto += "\n[MARS] " + errores
+                if codigo != 0:
+                    texto += "\n[codigo de salida {}]".format(codigo)
+            except ErrorSimulador as e:
+                texto = "error del simulador: {}".format(e)
+            self.after(0, lambda: self.terminar_mips(texto))
+
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    def terminar_mips(self, texto):
+        self.mostrar(self.vista_salida, texto)
+        self.panel.select(self.vista_salida.master)
+        self.estado.configure(text="simulacion terminada")
 
     def ir_al_error(self, evento):
         seleccion = self.lista_errores.selection()

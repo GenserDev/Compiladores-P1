@@ -35,6 +35,11 @@ class Resultado:
         self.parser = parser
         self.tac = tac
 
+    def mips(self, modo="registros"):
+        """Texto del programa MIPS (requiere que la compilacion haya generado TAC)."""
+        from mips.emisor import generar_mips
+        return generar_mips(self.tac, self.tabla, modo)
+
     def exitoso(self):
         return not self.errores.hay_errores()
 

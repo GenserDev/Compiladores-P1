@@ -12,4 +12,4 @@ COPY . /app
 RUN pip install -r requirements.txt --break-system-packages
 RUN ./generar_parser.sh
 
-CMD ["python3", "Driver.py", "program/ejemplo.cps", "--tabla"]
+CMD ["python3", "Driver.py", "program/ejemplo.cps", "--ejecutar"]
